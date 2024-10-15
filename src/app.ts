@@ -1,30 +1,53 @@
-import express from "express";
+import express, { json } from "express";
+
 import checkJWT from "./middlewares/verify-jwt";
-import { createHash, generateSalt } from "./utils/create-hash";
+import { createToken } from "./utils/token";
+import { createSaltAndHash, UUID } from "./utils/create-hash";
+
+import { getUserByEmail, saveUser } from "./utils/users";
 
 const app = express();
 
+app.use(json());
+
 app.get("/users/me", checkJWT, async (req: any, res) => {
-  console.log("pasé el checkJWT", req._user.id);
+  res.status(200).json({ data: req._user });
 });
 
-app.get("/auth/register", async (req: any, res) => {
-  const salt = generateSalt();
-  const hashedPassword = createHash(req.body.password, salt);
+app.post("/auth/register", async (req: any, res) => {
+  const { email, password } = req.body;
+
+  const searchedEmail = await getUserByEmail(email);
+
+  if (searchedEmail)
+    return res.status(400).json({ error: "El usuario ya existe" });
+
+  const salt = UUID();
+  const hashedPassword = createSaltAndHash(password, salt);
+
+  const id = UUID();
+  await saveUser({
+    id,
+    email,
+    password: hashedPassword,
+  });
+
+  const token = createToken({ id });
+
+  res.status(201).json({ message: "usuario registrado", token });
 });
 
-app.get("/auth/login", async (req: any, res) => {
+app.post("/auth/login", async (req: any, res) => {
   const { password, email } = req.body;
-  // [HAGO LA BUSQUEDA POR MAIL EN LA BASE DE DATOS]
 
-  const user = {
-    email: "ada@ada.com",
-    password: "hioawcrhacfhnca:cerñhnecwthnmñctwehnwtechnñtcehnñctwehñnthnñ",
-  }; // RECUPERO ESTA INFO DE LA BASE DE DATOS
+  const user = await getUserByEmail(email);
 
   const [salt, hash] = user.password.split(":");
-  if (createHash(password, salt) == user.password) {
-    res.status(200).json({ message: "login exitoso" });
+
+  if (createSaltAndHash(password, salt) == user.password) {
+    const token = createToken({ id: user.id });
+
+    res.status(200).json({ message: "login exitoso", token });
   } else {
     res.status(401).json({ message: "contraseña incorrecta" });
   }

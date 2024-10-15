@@ -1,9 +1,11 @@
 import * as jwt from "jsonwebtoken";
 
-function signJWT(data: string | Object) {
-  const token = jwt.sign(data, process.env.SECRET_KEY);
+function createToken(data: string | Object) {
+  const token = jwt.sign(data, process.env.SECRET_KEY, {
+    expiresIn: "1d", // VENCE EN 1 DÍA
+  });
 
   return token;
 }
 
-export { signJWT };
+export { createToken };
